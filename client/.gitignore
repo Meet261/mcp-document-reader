@@ -1,2 +1,7 @@
-.vercel
+# client/.gitignore
+node_modules/
+dist/
+
+# server/.gitignore
+__pycache__/
 .env
