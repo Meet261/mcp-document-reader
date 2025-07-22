@@ -44,3 +44,10 @@ def read_page(req: ReadRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/")
+def root():
+    return {
+        "message": "MCP Talker API is running",
+        "routes": ["/ping", "/read"]
+    }
