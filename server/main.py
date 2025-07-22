@@ -1,53 +1,42 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from reader import extract_text_from_url
-from dotenv import load_dotenv
-import os
-
-# Load environment variables from .env
-load_dotenv()
-
-# Get frontend origin from .env or allow all in dev
-frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
+from fastapi.responses import JSONResponse
+from pypdf import PdfReader
+import tempfile
 
 app = FastAPI()
 
-# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_origin],
+    allow_origins=["*"],  # Consider restricting this in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Request schema
-class ReadRequest(BaseModel):
-    url: str
-    page: int
+pdf_path = None
 
-# Health check endpoint
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
+@app.post("/upload")
+async def upload_pdf(file: UploadFile = File(...)):
+    global pdf_path
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(await file.read())
+        pdf_path = tmp.name
+    return {"message": "Uploaded"}
 
-# Endpoint to extract text from a PDF page
+# ✅ Handle CORS preflight (OPTIONS request)
+@app.options("/read")
+async def options_read():
+    return JSONResponse(content={"status": "ok"})
+
 @app.post("/read")
-def read_page(req: ReadRequest):
+async def read_page(request: Request):
+    global pdf_path
     try:
-        text = extract_text_from_url(req.url, req.page)
-        return {
-            "message": f"Text extracted from page {req.page}",
-            "page": req.page,
-            "text": text
-        }
+        data = await request.json()
+        page_num = int(data.get("page", 1)) - 1
+        reader = PdfReader(pdf_path)
+        text = reader.pages[page_num].extract_text()
+        return {"text": text}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/")
-def root():
-    return {
-        "message": "MCP Talker API is running",
-        "routes": ["/ping", "/read"]
-    }
+        return {"error": str(e)}

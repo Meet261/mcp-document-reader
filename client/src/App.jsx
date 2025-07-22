@@ -18,14 +18,22 @@ function App() {
     setIsLoaded(true);
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const uploadedFile = e.target.files[0];
     if (uploadedFile && uploadedFile.type === 'application/pdf') {
       setFile(uploadedFile);
       setUrl('');
       setIsLoaded(false);
+  
+      // Upload to backend
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+      await fetch('http://127.0.0.1:8000/upload', {
+        method: 'POST',
+        body: formData,
+      });
     }
-  };
+  };  
 
   const handleUrlUpload = async () => {
     const enteredUrl = prompt('Enter PDF URL:');
@@ -36,20 +44,26 @@ function App() {
     }
   };
 
-  const handleReadPage = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page: pageNumber })
-      });
-      const data = await response.json();
+  const handleReadThisPage = async () => {
+    const response = await fetch("http://127.0.0.1:8000/read", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ page: pageNumber }),
+    });
+  
+    const data = await response.json();
+  
+    if (data.text) {
       const utterance = new SpeechSynthesisUtterance(data.text);
-      speechSynthesis.speak(utterance);
-    } catch (err) {
-      alert('Failed to read page.');
+      utterance.lang = "en-US";
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert(data.error || "No text found on this page.");
     }
-  };
+  };  
 
   const reset = () => {
     setFile(null);
@@ -85,7 +99,7 @@ function App() {
             <>
               <div className="controls">
                 <button onClick={() => setPageNumber(p => Math.max(p - 1, 1))}>◀ Previous</button>
-                <button className="read-btn" onClick={handleReadPage}>🔊 Read This Page</button>
+                <button className="read-btn" onClick={handleReadThisPage}>🔊 Read This Page</button>
                 <button onClick={() => setPageNumber(p => Math.min(p + 1, numPages))}>Next ▶</button>
               </div>
               <p>Page {pageNumber} of {numPages}</p>
