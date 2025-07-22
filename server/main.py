@@ -2,17 +2,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from reader import extract_text_from_url
-from speaker import speak_text
-import os
 from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env
 load_dotenv()
 
+# Get frontend origin from .env or allow all in dev
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
 
 app = FastAPI()
 
-# Load frontend origin from env
-frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
-
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[frontend_origin],
@@ -21,27 +22,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request schema
 class ReadRequest(BaseModel):
     url: str
     page: int
 
-@app.post("/read")
-def read_and_speak(req: ReadRequest):
-    try:
-        text = extract_text_from_url(req.url, req.page)
-        speak_text(text)
-        return {"message": f"Reading page {req.page}", "text": text}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.post("/text")
-def extract_text(req: ReadRequest):
-    try:
-        text = extract_text_from_url(req.url, req.page)
-        return {"page": req.page, "text": text}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
+# Health check endpoint
 @app.get("/ping")
 def ping():
-    return {"status": "alive"}
+    return {"status": "ok"}
+
+# Endpoint to extract text from a PDF page
+@app.post("/read")
+def read_page(req: ReadRequest):
+    try:
+        text = extract_text_from_url(req.url, req.page)
+        return {
+            "message": f"Text extracted from page {req.page}",
+            "page": req.page,
+            "text": text
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
